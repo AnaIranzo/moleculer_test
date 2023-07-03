@@ -1,22 +1,56 @@
+// index.js
 const { ServiceBroker } = require("moleculer");
+const HTTPServer = require("moleculer-web");
 
-// Create a ServiceBroker
-const broker = new ServiceBroker();
-
-// Define a service
-broker.createService({
-    name: "math",
-    actions: {
-        add(ctx) {
-            return Number(ctx.params.a) + Number(ctx.params.b);
-        }
-    }
+// Create the broker for node-1
+// Define nodeID and set the communication bus
+const brokerNode1 = new ServiceBroker({
+  nodeID: "node-1",
+  transporter: "NATS"
 });
 
-// Start the broker
-broker.start()
-    // Call the service
-    .then(() => broker.call("math.add", { a: 5, b: 3 }))
-    // Print the response
-    .then(res => console.log("5 + 3 =", res))
-    .catch(err => console.error(`Error occured! ${err.message}`));
+// Create the "gateway" service
+brokerNode1.createService({
+  // Define service name
+  name: "gateway",
+  // Load the HTTP server
+  mixins: [HTTPServer],
+
+  settings: {
+    routes: [
+      {
+        aliases: {
+          // When the "GET /products" request is made the "listProducts" action of "products" service is executed
+          "GET /products": "products.listProducts"
+        }
+      }
+    ]
+  }
+});
+
+// Create the broker for node-2
+// Define nodeID and set the communication bus
+const brokerNode2 = new ServiceBroker({
+  nodeID: "node-2",
+  transporter: "NATS"
+});
+
+// Create the "products" service
+brokerNode2.createService({
+  // Define service name
+  name: "products",
+
+  actions: {
+    // Define service action that returns the available products
+    listProducts(ctx) {
+      return [
+        { name: "Apples", price: 5 },
+        { name: "Oranges", price: 3 },
+        { name: "Bananas", price: 2 }
+      ];
+    }
+  }
+});
+
+// Start both brokers
+Promise.all([brokerNode1.start(), brokerNode2.start()]);
