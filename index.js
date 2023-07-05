@@ -19,12 +19,20 @@ brokerNode1.createService({
         aliases: {
           "GET /tasks": "tasks.listTasks", // Get all tasks
           "POST /task": "tasks.createTask", // Create a new task
-          "GET /lists": "lists.getLists", // Get all tasks
-          "POST /list": "lists.createList", // Create a new task
-       
+          "GET /lists": "lists.getLists", // Get all lists
+          "POST /list": "lists.createList", // Create a new list
         }
       }
-    ]
+    ],
+
+    cors: {
+      origin: "*", // Set this to your desired origin or list of origins
+      methods: ["GET", "POST"], // Set the allowed HTTP methods
+      allowedHeaders: ["Content-Type"], // Set the allowed HTTP headers
+      exposedHeaders: [], // Set the exposed HTTP headers
+      credentials: false, // Set to true if you want to allow credentials (cookies, authorization headers, etc.)
+      maxAge: 3600 // Set the max age value (in seconds) for preflight requests
+    }
   }
 });
 
@@ -34,38 +42,31 @@ const brokerNode2 = new ServiceBroker({
   transporter: "NATS"
 });
 
-// Create an empty array to store todos
+// Create an empty array to store lists
 const lists = [];
 
-// Create the "todos" service
+// Create the "lists" service
 brokerNode2.createService({
   name: "lists",
 
   actions: {
     getLists() {
-      // Return the array of todos
+      // Return the array of lists
       return lists;
     },
 
     createList(ctx) {
-      // Create a new todo
+      // Create a new list
       const { listName } = ctx.params;
-      const newList = { id: generateListId(), listName};
+      const newList = { id: generateListId(), listName };
       // Save the new list to the array
       lists.push(newList);
       return newList;
     },
-
-  //    {
-  //   "listName": "test",
-  //   
-  // }
-
-
   }
 });
 
-// Create an empty array to store todos
+// Create an empty array to store tasks
 const tasks = [];
 
 const brokerNode3 = new ServiceBroker({
@@ -78,40 +79,37 @@ brokerNode3.createService({
 
   actions: {
     listTasks() {
-      // Return the array of todos
+      // Return the array of tasks
       return tasks;
     },
 
     createTask(ctx) {
-      // Create a new todo
-      const { text } = ctx.params;
-      const newTask = { id: generateTaskId(), text, completed: false };
-      // Save the new todo to the array
+      // Create a new task
+      const { taskName, listId } = ctx.params;
+      const newList = lists.find((list) => list.id === listId);
+
+      if (!newList) {
+        throw new Error(`List with ID ${listId} not found.`);
+      }
+
+      const newTask = { id: generateTaskId(), taskName:taskName, completed: false, listId:listId };
+      // Save the new task to the array
       tasks.push(newTask);
       return newTask;
     },
-
-  //    {
-  //   "text": "test",
-  //   "completed": false
-  // }
-
-
   }
 });
 
 // Start both brokers
 Promise.all([brokerNode1.start(), brokerNode2.start(), brokerNode3.start()]);
 
-// Helper function to generate a unique ID for a new todo
+// Helper function to generate a unique ID for a new task
 function generateTaskId() {
-
   const uniqueId = uuidv4();
   return uniqueId;
 }
 
 function generateListId() {
-
   const uniqueId = uuidv4();
   return uniqueId;
 }
